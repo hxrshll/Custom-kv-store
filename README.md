@@ -23,11 +23,14 @@ Is this production-ready? Absolutely not. Does it work? Yep.
 
 ## Folder vibes
 
+
+```
 src/
-  core/          -> the actual key-value store (the important part)
-  commands/      -> turns raw strings into store operations
-  server/        -> lightweight TCP server, acts like poor man’s Redis
-tests/           -> at least I tested it once
+ ├─ core/          # the real engine – in-memory key/value store
+ ├─ commands/      # parses text commands (SET, GET, DEL, etc.)
+ ├─ server/        # tiny TCP server so you can connect like redis
+tests/             # yes, I actually wrote tests
+```
 
 ## Quick usage
 
