@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { InMemoryStore } from "../src/core/store";
 
 describe("InMemoryStore", () => {
@@ -31,5 +31,25 @@ describe("InMemoryStore", () => {
 
     store.clear();
     expect(store.has("a")).toBe(false);
+  });
+
+  it("expires keys after ttl", () => {
+    vi.useFakeTimers();
+    const store = new InMemoryStore();
+
+    store.set("temp", "123", { ttl: 1000 }); // 1 second
+
+    // immediately available
+    expect(store.get("temp")).toBe("123");
+    expect(store.has("temp")).toBe(true);
+
+    // jump 1.1s into the future
+    vi.advanceTimersByTime(1100);
+
+    // key should be expired and removed lazily on access
+    expect(store.get("temp")).toBeNull();
+    expect(store.has("temp")).toBe(false);
+
+    vi.useRealTimers();
   });
 });
