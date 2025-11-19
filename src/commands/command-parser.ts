@@ -13,9 +13,8 @@ export class CommandHandler {
     const command = cmd.toUpperCase();
 
     switch (command) {
-      case "SET": {
+      case "SET":
         return this.handleSet(args);
-      }
 
       case "GET": {
         const [key] = args;
@@ -59,6 +58,22 @@ export class CommandHandler {
         return this.store.mget(args);
       }
 
+      case "SAVE": {
+        const [filename] = args;
+        try {
+          this.store.saveToFile(filename);
+          return "OK";
+        } catch (err: any) {
+          return `ERR ${String(err.message ?? err)}`;
+        }
+      }
+
+      case "LOAD": {
+        const [filename] = args;
+        const res = this.store.loadFromFile(filename);
+        return res;
+      }
+
       default:
         return `ERR unknown command '${cmd}'`;
     }
@@ -75,9 +90,6 @@ export class CommandHandler {
     let ttlMs: number | undefined;
 
     if (rest.length > 0) {
-      // supports:
-      // SET key value PX 5000
-      // SET key value EX 5
       const [flagRaw, ttlRaw] = rest;
       const flag = flagRaw?.toUpperCase();
       const ttlNum = Number(ttlRaw);

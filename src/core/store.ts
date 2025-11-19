@@ -1,3 +1,6 @@
+import fs from "fs";
+import path from "path";
+
 export interface SetOptions {
   /** time to live in milliseconds */
   ttl?: number;
@@ -17,19 +20,17 @@ export interface KeyValueStore {
   incr(key: string): number;
   decr(key: string): number;
   mget(keys: string[]): (string | null)[];
+  saveToFile(filePath?: string): void;
+  loadFromFile(filePath?: string): "OK" | string;
 }
 
 export class InMemoryStore implements KeyValueStore {
   private store = new Map<string, StoredValue>();
   private cleanupTimer?: NodeJS.Timer;
 
-  /**
-   * @param cleanupIntervalMs optional sweep interval in ms. 0 (default) disables background sweep.
-   */
   constructor(cleanupIntervalMs = 0) {
     if (cleanupIntervalMs > 0) {
       const t = setInterval(() => this.cleanupExpired(), cleanupIntervalMs);
-      // don't keep node alive just for cleanup
       (t as any).unref?.();
       this.cleanupTimer = t;
     }
@@ -81,25 +82,17 @@ export class InMemoryStore implements KeyValueStore {
     this.store.clear();
   }
 
-  // -- numeric helpers --
-
   incr(key: string): number {
-    // Note: use get() so TTL is respected (lazy expiration)
     const currentVal = this.get(key);
     const currentNum = Number(currentVal ?? 0);
     const next = currentNum + 1;
-    // set as plain string, do not change existing TTL
-    // if key existed with TTL, preserve it by reading stored entry
     const stored = this.store.get(key);
     const expiresAt = stored?.expiresAt;
     if (expiresAt) {
-      // compute remaining TTL and set with remaining ttl
       const remaining = expiresAt - Date.now();
-      // if remaining <= 0, set without TTL (but it wouldn't get here because get() would have removed it)
       if (remaining > 0) {
         this.set(key, String(next), { ttl: remaining });
       } else {
-        // expired, just set fresh value
         this.set(key, String(next));
       }
     } else {
@@ -127,17 +120,52 @@ export class InMemoryStore implements KeyValueStore {
     return next;
   }
 
-  // Batch read
   mget(keys: string[]): (string | null)[] {
     return keys.map((k) => this.get(k));
+  }
+
+  saveToFile(filePath = "dump.json"): void {
+    const absolute = path.resolve(filePath);
+    const arr: Array<[string, StoredValue]> = [];
+    for (const [key, entry] of this.store.entries()) {
+      if (entry.expiresAt && entry.expiresAt <= Date.now()) continue;
+      arr.push([key, entry]);
+    }
+    try {
+      fs.writeFileSync(absolute, JSON.stringify(arr), { encoding: "utf8" });
+    } catch (err) {
+      throw new Error(`Failed to save to file ${absolute}: ${String(err)}`);
+    }
+  }
+
+  loadFromFile(filePath = "dump.json"): "OK" | string {
+    const absolute = path.resolve(filePath);
+    if (!fs.existsSync(absolute)) {
+      return `ERR file not found: ${absolute}`;
+    }
+    try {
+      const raw = fs.readFileSync(absolute, { encoding: "utf8" });
+      const parsed = JSON.parse(raw) as Array<[string, StoredValue]>;
+      this.store.clear();
+      const now = Date.now();
+      for (const [key, entry] of parsed) {
+        if (entry.expiresAt && entry.expiresAt <= now) continue;
+        this.store.set(key, {
+          value: String(entry.value),
+          expiresAt: entry.expiresAt,
+        });
+      }
+      return "OK";
+    } catch (err) {
+      return `ERR failed to load file ${absolute}: ${String(err)}`;
+    }
   }
 
   // ---------------- internal helpers ----------------
 
   private isExpired(entry: StoredValue): boolean {
     return (
-      typeof entry.expiresAt === "number" &&
-      entry.expiresAt <= Date.now()
+      typeof entry.expiresAt === "number" && entry.expiresAt <= Date.now()
     );
   }
 
