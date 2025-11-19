@@ -1,6 +1,6 @@
 import { InMemoryStore } from "../core/store";
 
-export type CommandResult = string | number | null;
+export type CommandResult = string | number | null | (string | null)[];
 
 export class CommandHandler {
   constructor(private store: InMemoryStore) {}
@@ -40,6 +40,23 @@ export class CommandHandler {
       case "FLUSHALL": {
         this.store.clear();
         return "OK";
+      }
+
+      case "INCR": {
+        const [key] = args;
+        if (!key) return "ERR wrong number of arguments for 'INCR'";
+        return this.store.incr(key);
+      }
+
+      case "DECR": {
+        const [key] = args;
+        if (!key) return "ERR wrong number of arguments for 'DECR'";
+        return this.store.decr(key);
+      }
+
+      case "MGET": {
+        if (args.length === 0) return "ERR MGET requires at least one key";
+        return this.store.mget(args);
       }
 
       default:

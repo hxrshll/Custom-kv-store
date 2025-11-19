@@ -52,4 +52,20 @@ describe("InMemoryStore", () => {
 
     vi.useRealTimers();
   });
+
+  it("increments and decrements values", () => {
+    const store = new InMemoryStore();
+
+    expect(store.incr("count")).toBe(1);
+    expect(store.incr("count")).toBe(2);
+    expect(store.decr("count")).toBe(1);
+  });
+
+  it("mget returns array of values", () => {
+    const store = new InMemoryStore();
+    store.set("a", "1");
+    store.set("b", "2");
+
+    expect(store.mget(["a", "b", "c"])).toEqual(["1", "2", null]);
+  });
 });

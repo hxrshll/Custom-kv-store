@@ -8,6 +8,9 @@ export interface ServerOptions {
 }
 
 function formatResult(result: CommandResult): string {
+  if (Array.isArray(result)) {
+    return JSON.stringify(result) + "\n";
+  }
   if (result === null) return "(nil)\n";
   return String(result) + "\n";
 }
@@ -24,7 +27,7 @@ export function startTcpServer(options: ServerOptions = {}) {
 
     socket.write(
       "custom kv store server\n" +
-        "commands: SET key value | GET key | DEL key | EXISTS key | CLEAR\n"
+        "commands: SET key value | GET key | DEL key | EXISTS key | CLEAR | INCR | DECR | MGET\n"
     );
 
     let buffer = "";
@@ -53,4 +56,8 @@ export function startTcpServer(options: ServerOptions = {}) {
   });
 
   return server;
+}
+
+if (typeof require !== "undefined" && require.main === module) {
+  startTcpServer();
 }
