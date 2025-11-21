@@ -5,7 +5,7 @@ export type CommandResult = string | number | null | (string | null)[];
 export class CommandHandler {
   constructor(private store: InMemoryStore) {}
 
-  execute(raw: string): CommandResult {
+  async execute(raw: string): Promise<CommandResult> {
     const line = raw.trim();
     if (!line) return null;
 
@@ -58,10 +58,27 @@ export class CommandHandler {
         return this.store.mget(args);
       }
 
+      case "MSET": {
+        if (args.length === 0 || args.length % 2 !== 0) {
+          return "ERR MSET requires even number of arguments (key value ...)";
+        }
+        const pairs: Array<[string, string]> = [];
+        for (let i = 0; i < args.length; i += 2) {
+          const k = args[i];
+          const v = args[i + 1];
+          pairs.push([k, v]);
+        }
+        return this.store.mset(pairs);
+      }
+
       case "SAVE": {
         const [filename] = args;
         try {
-          this.store.saveToFile(filename);
+          if (typeof (this.store as any).saveToFileAsync === "function") {
+            await (this.store as any).saveToFileAsync(filename);
+          } else {
+            this.store.saveToFile(filename);
+          }
           return "OK";
         } catch (err: any) {
           return `ERR ${String(err.message ?? err)}`;
@@ -70,8 +87,10 @@ export class CommandHandler {
 
       case "LOAD": {
         const [filename] = args;
-        const res = this.store.loadFromFile(filename);
-        return res;
+        if (typeof (this.store as any).loadFromFileAsync === "function") {
+          return await (this.store as any).loadFromFileAsync(filename);
+        }
+        return this.store.loadFromFile(filename);
       }
 
       default:

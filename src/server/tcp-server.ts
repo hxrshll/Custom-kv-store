@@ -27,12 +27,12 @@ export function startTcpServer(options: ServerOptions = {}) {
 
     socket.write(
       "custom kv store server\n" +
-        "commands: SET key value | GET key | DEL key | EXISTS key | CLEAR | INCR | DECR | MGET\n"
+        "commands: SET key value | GET key | DEL key | EXISTS key | CLEAR | INCR | DECR | MGET | MSET | SAVE | LOAD\n"
     );
 
     let buffer = "";
 
-    socket.on("data", (chunk) => {
+    socket.on("data", async (chunk) => {
       buffer += chunk;
 
       const lines = buffer.split(/\r?\n/);
@@ -40,9 +40,12 @@ export function startTcpServer(options: ServerOptions = {}) {
 
       for (const line of lines) {
         if (!line.trim()) continue;
-
-        const result = handler.execute(line);
-        socket.write(formatResult(result));
+        try {
+          const result = await handler.execute(line);
+          socket.write(formatResult(result));
+        } catch (err) {
+          socket.write(`ERR ${String(err)}\n`);
+        }
       }
     });
 
