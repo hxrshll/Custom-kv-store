@@ -93,6 +93,36 @@ export class CommandHandler {
         return this.store.loadFromFile(filename);
       }
 
+      // TTL introspection 
+      case "PTTL": {
+        const [key] = args;
+        if (!key) return "ERR wrong number of arguments for 'PTTL'";
+        const ms = this.store.remainingTtl(key);
+        if (ms === null) {
+          const exists = this.store.has(key);
+          return exists ? -1 : -2;
+        }
+        return Math.max(0, Math.floor(ms));
+      }
+
+      case "TTL": {
+        const [key] = args;
+        if (!key) return "ERR wrong number of arguments for 'TTL'";
+        const ms = this.store.remainingTtl(key);
+        if (ms === null) {
+          const exists = this.store.has(key);
+          return exists ? -1 : -2;
+        }
+        return Math.max(0, Math.floor(ms / 1000));
+      }
+
+      case "PERSIST": {
+        const [key] = args;
+        if (!key) return "ERR wrong number of arguments for 'PERSIST'";
+        const removed = this.store.persist(key);
+        return removed ? 1 : 0;
+      }
+
       default:
         return `ERR unknown command '${cmd}'`;
     }

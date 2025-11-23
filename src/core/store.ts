@@ -26,6 +26,8 @@ export interface KeyValueStore {
   loadFromFile(filePath?: string): "OK" | string;
   saveToFileAsync(filePath?: string): Promise<void>;
   loadFromFileAsync(filePath?: string): Promise<"OK" | string>;
+  remainingTtl(key: string): number | null; 
+  persist(key: string): boolean; 
 }
 
 export class InMemoryStore implements KeyValueStore {
@@ -200,6 +202,38 @@ export class InMemoryStore implements KeyValueStore {
     } catch (err: any) {
       return `ERR failed to load file ${absolute}: ${String(err)}`;
     }
+  }
+
+  remainingTtl(key: string): number | null {
+    const entry = this.store.get(key);
+    if (!entry) return null;
+
+    if (this.isExpired(entry)) {
+      this.store.delete(key);
+      return null;
+    }
+
+    if (typeof entry.expiresAt !== "number") return null;
+
+    const rem = entry.expiresAt - Date.now();
+    if (rem <= 0) {
+      this.store.delete(key);
+      return null;
+    }
+    return rem;
+  }
+  persist(key: string): boolean {
+    const entry = this.store.get(key);
+    if (!entry) return false;
+
+    if (this.isExpired(entry)) {
+      this.store.delete(key);
+      return false;
+    }
+
+    if (typeof entry.expiresAt !== "number") return false;
+    this.store.set(key, { value: entry.value });
+    return true;
   }
 
   // ---------------- internal helpers ----------------
