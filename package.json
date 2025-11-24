@@ -7,7 +7,8 @@
     "build": "tsc",
     "test": "vitest",
     "dev": "ts-node src/index.ts",
-    "server": "ts-node src/server/tcp-server.ts"
+    "server": "ts-node src/server/tcp-server.ts",
+    "http": "ts-node src/server/http-server.ts"
   },
   "devDependencies": {
     "typescript": "^5.0.0",
