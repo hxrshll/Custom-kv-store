@@ -1,6 +1,7 @@
 import net from "net";
 import { InMemoryStore } from "../core/store";
 import { CommandHandler, CommandResult } from "../commands/command-parser";
+import { globalPubSub, SubscriberId } from "../core/pubsub";
 
 export interface ServerOptions {
   port?: number;
@@ -27,8 +28,14 @@ export function startTcpServer(options: ServerOptions = {}) {
 
     socket.write(
       "custom kv store server\n" +
-        "commands: SET key value | GET key | DEL key | EXISTS key | CLEAR | INCR | DECR | MGET | MSET | SAVE | LOAD\n"
+        "commands: SET key value | GET key | DEL key | EXISTS key | CLEAR | INCR | DECR | MGET | MSET | SAVE | LOAD | SUB | UNSUB | PUB\n"
     );
+
+    const sid: SubscriberId = `${socket.remoteAddress}:${socket.remotePort}:${Date.now()}`;
+
+    const sendPub = (chan: string) => (payload: string) => {
+      socket.write(`MESSAGE ${chan} ${payload}\n`);
+    };
 
     let buffer = "";
 
@@ -38,8 +45,47 @@ export function startTcpServer(options: ServerOptions = {}) {
       const lines = buffer.split(/\r?\n/);
       buffer = lines.pop() ?? "";
 
-      for (const line of lines) {
-        if (!line.trim()) continue;
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line) continue;
+
+        const [cmdRaw, ...args] = line.split(/\s+/);
+        const cmd = cmdRaw.toUpperCase();
+
+        if (cmd === "SUB") {
+          const [channel] = args;
+          if (!channel) {
+            socket.write("ERR wrong number of arguments for 'SUB'\n");
+            continue;
+          }
+          globalPubSub.subscribe(channel, sid, sendPub(channel));
+          socket.write(`OK sub ${channel}\n`);
+          continue;
+        }
+
+        if (cmd === "UNSUB") {
+          const [channel] = args;
+          if (!channel) {
+            socket.write("ERR wrong number of arguments for 'UNSUB'\n");
+            continue;
+          }
+          globalPubSub.unsubscribe(channel, sid);
+          socket.write(`OK unsub ${channel}\n`);
+          continue;
+        }
+
+        if (cmd === "PUB") {
+          const [channel, ...rest] = args;
+          if (!channel) {
+            socket.write("ERR wrong number of arguments for 'PUB'\n");
+            continue;
+          }
+          const message = rest.join(" ");
+          const count = globalPubSub.publish(channel, message);
+          socket.write(String(count) + "\n");
+          continue;
+        }
+
         try {
           const result = await handler.execute(line);
           socket.write(formatResult(result));
@@ -49,13 +95,17 @@ export function startTcpServer(options: ServerOptions = {}) {
       }
     });
 
-    socket.on("error", (err) => {
-      console.error("client error:", err);
+    socket.on("close", () => {
+      globalPubSub.unsubscribeAll(sid);
+    });
+
+    socket.on("error", () => {
+      globalPubSub.unsubscribeAll(sid);
     });
   });
 
   server.listen(port, host, () => {
-    console.log(`kv-store server listening on ${host}:${port}`);
+    console.log(`kv-store server (tcp) listening on ${host}:${port}`);
   });
 
   return server;
