@@ -1,5 +1,3 @@
-// src/server/http-server.ts
-
 import http, { IncomingMessage, Server, ServerResponse } from "http";
 import { URL } from "url";
 import { InMemoryStore } from "../core/store";
@@ -94,3 +92,4 @@ export function startHttpServer(
 if (typeof require !== "undefined" && require.main === module) {
   startHttpServer();
 }
+
