@@ -1,5 +1,3 @@
-// src/server/http-server.ts
-
 import http, { IncomingMessage, Server, ServerResponse } from "http";
 import { URL } from "url";
 import { InMemoryStore } from "../core/store";
